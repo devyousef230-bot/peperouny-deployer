@@ -34,3 +34,11 @@ ZEUS initial adapter in apps/api/src/deploy/zeus.ts, pinned upstream Source.js c
 - Add durable deployment job progress/logs.
 - Review least-privilege Cloudflare token scopes.
 - Do not claim a real Cloudflare deployment until actually tested.
+
+
+## workers.dev provisioning update (2026-11-12)
+- Cloudflare token link is preconfigured in `apps/web/src/main.tsx` with Account Settings Read, D1 Edit, and Workers Scripts Edit.
+- ZEUS adapter now checks the account-level workers.dev subdomain, creates a deterministic `peperouny-<first-16-account-id-chars>` subdomain if missing, and enables the deployed script's workers.dev route.
+- Account-level create endpoint: `PUT /accounts/{account_id}/workers/subdomain`; script route endpoint: `POST /accounts/{account_id}/workers/scripts/{script_name}/subdomain`.
+- Both operations require Workers Scripts Write (provided by Workers Scripts Edit token scope).
+- Local typecheck/build and live Cloudflare validation are still required for this change.
