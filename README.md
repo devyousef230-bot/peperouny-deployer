@@ -39,4 +39,4 @@ The API is intended to run as a private, single-operator self-hosted service in 
 - Nexus/cfnew — Worker core; panel integration and KV bindings depend on the selected setup.
 - Nova Proxy — Cloudflare Workers deployment with its documented KV and D1 requirements.
 
-Project-specific provisioning and deployment adapters are not implemented yet. The current milestone is the persistent Cloudflare connection and project-selection flow; no deployment is claimed to be operational yet.
+An initial ZEUS deployment adapter is now wired into the API. It fetches the pinned upstream Worker entry file, provisions/reuses a D1 database, uploads the Worker with the required `DB` binding, and reports the resulting deployment details. This path has been committed but still requires a real Cloudflare account test before it can be called production-ready. Nexus and Nova adapters remain in progress.
