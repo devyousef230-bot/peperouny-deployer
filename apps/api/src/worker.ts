@@ -14,7 +14,16 @@ interface Env {
   PEPEROUNY_MASTER_KEY: string;
 }
 type SavedCredential = { token: string; accountId: string | null };
-type CfEnvelope<T> = { success: boolean; errors?: Array<{ message?: string }>; result: T };
+type CfEnvelope<T> = { success: boolean; errors?: Array<{ code?: number; message?: string }>; result: T };
+class CloudflareApiError extends Error {
+  constructor(
+    readonly upstreamStatus: number,
+    readonly cloudflareErrors: Array<{ code?: number; message?: string }>
+  ) {
+    super("Cloudflare API request failed");
+    this.name = "CloudflareApiError";
+  }
+}
 
 const API = "https://api.cloudflare.com/client/v4";
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), {
@@ -25,8 +34,15 @@ async function cf<T>(path: string, token: string): Promise<CfEnvelope<T>> {
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     signal: AbortSignal.timeout(15000),
   });
-  const body = await response.json() as CfEnvelope<T>;
-  if (!response.ok || !body.success) throw new Error("Cloudflare API request failed");
+  let body: CfEnvelope<T>;
+  try {
+    body = await response.json() as CfEnvelope<T>;
+  } catch {
+    throw new CloudflareApiError(response.status, [{ message: "Cloudflare returned a non-JSON response." }]);
+  }
+  if (!response.ok || !body.success) {
+    throw new CloudflareApiError(response.status, body.errors ?? []);
+  }
   return body;
 }
 async function key(env: Env): Promise<CryptoKey> {
@@ -79,13 +95,42 @@ async function route(request: Request, env: Env): Promise<Response> {
       const body = await request.json() as { token?: string };
       const token = body.token?.trim();
       if (!token || token.length > 512) return json({ success: false, message: "یک API Token معتبر وارد کنید." }, 400);
+      let stage = "token_verify";
       const verify = await cf<{ status: string }>("/user/tokens/verify", token);
-      if (verify.result.status !== "active") return json({ success: false, message: "توکن Cloudflare فعال نیست." }, 401);
+      if (verify.result.status !== "active") {
+        return json({ success: false, stage, message: "توکن Cloudflare فعال نیست.", diagnostic: { tokenStatus: verify.result.status } }, 401);
+      }
+      stage = "account_list";
       const list = await accounts(token);
       const accountId = list.result[0]?.id ?? null;
+      stage = "credential_save";
       await save(env, { token, accountId });
       return json({ success: true, accounts: list.result, accountId });
-    } catch { return json({ success: false, message: "اعتبارسنجی انجام نشد؛ توکن و دسترسی خواندن حساب‌ها را بررسی کنید." }, 401); }
+    } catch (error) {
+      if (error instanceof CloudflareApiError) {
+        const stage = error.upstreamStatus === 401 ? "cloudflare_authentication" : "cloudflare_api";
+        return json({
+          success: false,
+          stage,
+          message: "Cloudflare درخواست را رد کرد.",
+          diagnostic: {
+            upstreamStatus: error.upstreamStatus,
+            errors: error.cloudflareErrors.map(item => ({
+              code: item.code,
+              message: item.message
+            }))
+          }
+        }, 502);
+      }
+      return json({
+        success: false,
+        stage: "credential_or_network",
+        message: "اتصال یا ذخیره‌سازی اعتبارنامه با خطا مواجه شد.",
+        diagnostic: {
+          error: error instanceof Error ? error.message : "Unknown error"
+        }
+      }, 500);
+    }
   }
   if (url.pathname === "/api/cloudflare/account" && request.method === "POST") {
     try {
