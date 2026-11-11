@@ -1,5 +1,13 @@
 import { deployZeus } from "./deploy/zeus.js";
 
+interface D1Database {
+  prepare(query: string): D1PreparedStatement;
+}
+interface D1PreparedStatement {
+  bind(...values: unknown[]): D1PreparedStatement;
+  first<T = Record<string, unknown>>(): Promise<T | null>;
+  run(): Promise<unknown>;
+}
 interface Env {
   PEPEROUNY_DB: D1Database;
   ASSETS: { fetch(request: Request): Promise<Response> };
