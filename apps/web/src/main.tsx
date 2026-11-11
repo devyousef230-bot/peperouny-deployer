@@ -18,6 +18,8 @@ function App() {
   const [busy, setBusy] = useState(true);
   const [status, setStatus] = useState("");
   const [selectedProject, setSelectedProject] = useState("zeus");
+  const [deployBusy, setDeployBusy] = useState(false);
+  const [deployOutput, setDeployOutput] = useState("");
 
   useEffect(() => {
     fetch("/api/cloudflare/status")
@@ -68,6 +70,42 @@ function App() {
     } catch (error) { setStatus(error instanceof Error ? error.message : "خطا در ذخیره حساب."); }
   }
 
+  async function deploySelected() {
+    if (!connected || !selectedAccount) {
+      setStatus("ابتدا Cloudflare را متصل و حساب را انتخاب کنید.");
+      return;
+    }
+    if (selectedProject !== "zeus") {
+      setStatus("Adapter این پروژه هنوز آماده نشده است.");
+      return;
+    }
+    if (!window.confirm("ZEUS روی حساب Cloudflare انتخاب‌شده Deploy شود؟")) return;
+    setDeployBusy(true);
+    setDeployOutput("");
+    setStatus("در حال ساخت منابع و انتشار ZEUS...");
+    try {
+      const response = await fetch("/api/deploy", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: selectedProject }),
+      });
+      const data = await response.json() as {
+        success: boolean; message?: string;
+        deployment?: { scriptName: string; databaseName: string; workerUrl: string | null; steps: string[] };
+      };
+      if (!response.ok || !data.success || !data.deployment) throw new Error(data.message || "Deploy ناموفق بود.");
+      const result = data.deployment;
+      setDeployOutput([
+        ...result.steps.map((step) => "✓ " + step),
+        "Worker: " + result.scriptName,
+        "D1: " + result.databaseName,
+        result.workerUrl ? "URL: " + result.workerUrl : "workers.dev برای این حساب هنوز فعال نیست.",
+      ].join("\\n"));
+      setStatus("فرایند Deploy ZEUS با موفقیت به پایان رسید.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "خطا در Deploy.");
+    } finally { setDeployBusy(false); }
+  }
+
   async function disconnect() {
     if (!window.confirm("توکن ذخیره‌شده از این سرور حذف شود؟")) return;
     const response = await fetch("/api/cloudflare/connect", { method: "DELETE" });
@@ -110,7 +148,13 @@ function App() {
           <span className="project-mark">{project.name[0]}</span><b>{project.name}</b><p>{project.detail}</p><small>{project.target}</small>
         </button>)}
       </div>
-      <p className="note">انتخاب پروژه آماده است؛ موتور Provision و Deploy اختصاصی هر پروژه هنوز پیاده‌سازی نشده و تا تکمیل آن عملیات Deploy فعال نمی‌شود.</p>
+      <div className="deploy-actions">
+        <button type="button" className="deploy-button" onClick={deploySelected} disabled={!connected || deployBusy || selectedProject !== "zeus"}>
+          {deployBusy ? "Deploying ZEUS..." : selectedProject === "zeus" ? "Deploy ZEUS" : "Adapter coming soon"}
+        </button>
+      </div>
+      {deployOutput && <pre className="deploy-output">{deployOutput}</pre>}
+      <p className="note">در این مرحله Adapter اولیه ZEUS فعال است. Nexus و Nova بعد از تکمیل Adapter مستقل خودشان فعال می‌شوند.</p>
     </section>
     <footer>PEPEROUNY DEPLOYER <span>·</span> SELF-HOSTED CONTROL PLANE</footer>
   </main>;
