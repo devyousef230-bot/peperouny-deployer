@@ -35,7 +35,7 @@ For local development against a local D1 database, run `pnpm cf:dev`. Use `pnpm 
 
 ## Cloudflare token permissions for deploying ZEUS
 
-The token entered into Peperouny is used by the deployed Worker to manage the selected account. Grant only the required scopes: Account Read, D1 Edit, and Workers Scripts Edit. The token is encrypted using AES-GCM before it is stored in D1. The encryption key is a Worker secret and must never be committed to this repository.
+The token entered into Peperouny is used by the deployed Worker to manage the selected account. Grant these scopes: Account Settings Read, D1 Edit, and Workers Scripts Edit. Workers Scripts Edit includes the Workers Scripts Write permission required to create the account-level workers.dev subdomain and enable the Worker route. Peperouny creates a deterministic account subdomain (peperouny-<account-id-prefix>) when one does not exist, then enables the deployed Worker on it. The token is encrypted using AES-GCM before it is stored in D1. The encryption key is a Worker secret and must never be committed to this repository.
 
 ## Architecture
 
