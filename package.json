@@ -6,9 +6,15 @@
   "scripts": {
     "dev": "pnpm --parallel --filter @peperouny/web --filter @peperouny/api dev",
     "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "build:cloudflare": "pnpm --filter @peperouny/web build",
+    "cf:dev": "pnpm build:cloudflare && wrangler dev",
+    "cf:deploy": "pnpm build:cloudflare && wrangler deploy",
+    "cf:d1:create": "wrangler d1 create peperouny-deployer",
+    "cf:d1:migrate": "wrangler d1 migrations apply peperouny-deployer --remote"
   },
   "devDependencies": {
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "wrangler": "^4.0.0"
   }
 }
