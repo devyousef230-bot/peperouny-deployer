@@ -2,6 +2,7 @@ import Fastify from "fastify";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { mkdir, readFile, rename, writeFile, unlink } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { deployZeus } from "./deploy/zeus.js";
 
 const app = Fastify({ logger: true, bodyLimit: 16 * 1024 });
 const CLOUDFLARE_API = "https://api.cloudflare.com/client/v4";
@@ -131,6 +132,31 @@ app.post<{ Body: { accountId?: string } }>("/api/cloudflare/account", async (req
   } catch (error) {
     requestLog(request, error);
     return reply.code(503).send({ success: false, message: "ذخیره حساب انتخاب‌شده انجام نشد." });
+  }
+});
+
+app.post<{ Body: { projectId?: string } }>("/api/deploy", async (request, reply) => {
+  const projectId = request.body?.projectId;
+  if (projectId !== "zeus") {
+    return reply.code(409).send({
+      success: false,
+      message: "این پروژه هنوز Adapter آماده Deploy ندارد. فعلاً فقط ZEUS در حال پیاده‌سازی است.",
+    });
+  }
+
+  try {
+    const saved = await readCredential();
+    if (!saved) return reply.code(409).send({ success: false, message: "ابتدا Cloudflare را یک‌بار متصل کنید." });
+    if (!saved.accountId) return reply.code(409).send({ success: false, message: "ابتدا یک حساب Cloudflare انتخاب کنید." });
+
+    const result = await deployZeus(saved.accountId, saved.token);
+    return { success: true, deployment: result };
+  } catch (error) {
+    requestLog(request, error);
+    return reply.code(502).send({
+      success: false,
+      message: error instanceof Error ? error.message : "Deploy پروژه ناموفق بود.",
+    });
   }
 });
 
