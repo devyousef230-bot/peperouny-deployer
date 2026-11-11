@@ -50,7 +50,7 @@ async function ensureWorkersSubdomain(accountId: string, token: string): Promise
     // If the account has no workers.dev subdomain yet, create one below.
   }
 
-  const requestedSubdomain = `peperouny-${accountId.slice(0, 8).toLowerCase()}`;
+  const requestedSubdomain = `peperouny-${accountId.slice(0, 16).toLowerCase()}`;
   const created = await cfJson<WorkerSubdomain>(`/accounts/${accountId}/workers/subdomain`, token, {
     method: "PUT",
     body: JSON.stringify({ subdomain: requestedSubdomain }),
