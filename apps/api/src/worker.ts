@@ -91,11 +91,12 @@ async function route(request: Request, env: Env): Promise<Response> {
     } catch { return json({ connected: false, message: "Saved credentials could not be verified." }, 503); }
   }
   if (url.pathname === "/api/cloudflare/connect" && request.method === "POST") {
+    let stage = "request_parse";
     try {
       const body = await request.json() as { token?: string };
       const token = body.token?.trim();
       if (!token || token.length > 512) return json({ success: false, message: "یک API Token معتبر وارد کنید." }, 400);
-      let stage = "token_verify";
+      stage = "token_verify";
       const verify = await cf<{ status: string }>("/user/tokens/verify", token);
       if (verify.result.status !== "active") {
         return json({ success: false, stage, message: "توکن Cloudflare فعال نیست.", diagnostic: { tokenStatus: verify.result.status } }, 401);
@@ -108,7 +109,6 @@ async function route(request: Request, env: Env): Promise<Response> {
       return json({ success: true, accounts: list.result, accountId });
     } catch (error) {
       if (error instanceof CloudflareApiError) {
-        const stage = error.upstreamStatus === 401 ? "cloudflare_authentication" : "cloudflare_api";
         return json({
           success: false,
           stage,
