@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "packageManager": "pnpm@9.15.0",
   "scripts": {
-    "dev": "pnpm --filter @peperouny/api dev",
+    "dev": "pnpm --parallel --filter @peperouny/web --filter @peperouny/api dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck"
   },
