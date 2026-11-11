@@ -1,40 +1,42 @@
 # Peperouny Deployer
 
-A modular deployment control plane for deploying supported projects to Cloudflare.
-
-## Supported project adapters
-
-- **ZEUS** — project-specific deployment adapter
-- **Nexus (cfnew)** — Worker/core deployment adapter
-- **Nova Proxy** — Worker deployment adapter
+A self-hosted Cloudflare deployment control plane. End users connect Cloudflare once, choose a supported project, and deploy from this dashboard. End users do not need GitHub integration.
 
 ## Architecture
 
-- `apps/web` — dashboard UI
-- `apps/api` — backend API and deployment orchestration
-- `packages/core` — shared deployment contracts and types
-- `packages/cloudflare` — Cloudflare API integration
-- `packages/adapters` — one adapter per supported project
+- `apps/web` — deployment dashboard
+- `apps/api` — backend API and orchestration
+- `packages/core` — shared deployment contracts
+- `packages/cloudflare` — Cloudflare API client
+- `packages/adapters` — project-specific deployment adapters
 
-The deployment engine owns orchestration. Each adapter declares its own target compatibility, resource requirements, validation, and deployment behavior.
-
-## Development
+## Run locally
 
 Requirements: Node.js 20+ and pnpm 9+.
 
+Set a persistent encryption secret before starting the API:
+
 ```bash
+export PEPEROUNY_MASTER_KEY="replace-with-a-long-random-secret-at-least-32-characters"
+export PEPEROUNY_VAULT_PATH="./data/cloudflare-token.enc"
 pnpm install
 pnpm dev
 ```
 
-The dashboard runs on port 5173 and the API on port 3001. The Vite development server proxies `/api` requests to the API.
+The dashboard runs on port 5173 and the API on port 3001. The Vite development server proxies API requests to the backend.
+
+Keep `PEPEROUNY_MASTER_KEY` private and stable across restarts, and persist the vault directory. Losing the key makes the saved token unreadable.
 
 ## Cloudflare connection
 
-The dashboard currently supports verifying a Cloudflare API Token and listing accounts available to that token. Create a token with permission to read account details.
+The user enters a Cloudflare API Token once. The backend verifies it, lists accessible accounts, and stores the token encrypted at rest using AES-256-GCM. The selected account is saved alongside it. The raw token is never returned to the browser and is not written to logs. The user can explicitly remove the saved credential from the dashboard.
 
-The token is sent directly to the backend verification endpoint and is not persisted. Do not expose API tokens to the browser beyond the connection form or write them to logs.
+The API is intended to run as a private, single-operator self-hosted service in this MVP. Do not expose it publicly until dashboard authentication and request protection are configured.
 
-## Status
+## Project targets
 
-Early development. Cloudflare token verification and account selection are implemented. Project-specific provisioning and deployment adapters are still in progress.
+- ZEUS — target and required resources must follow the upstream deployment flow.
+- Nexus/cfnew — Worker core; panel integration and KV bindings depend on the selected setup.
+- Nova Proxy — Cloudflare Workers deployment with its documented KV and D1 requirements.
+
+Project-specific provisioning and deployment adapters are not implemented yet. The current milestone is the persistent Cloudflare connection and project-selection flow; no deployment is claimed to be operational yet.
