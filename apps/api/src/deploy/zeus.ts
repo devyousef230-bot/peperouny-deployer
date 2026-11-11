@@ -5,6 +5,7 @@ const ZEUS_WORKER_PREFIX = "peperouny-zeus";
 type CfEnvelope<T> = { success: boolean; errors?: Array<{ message?: string }>; result: T };
 type D1Database = { uuid: string; name: string };
 type WorkerSubdomain = { subdomain?: string };
+type ScriptSubdomain = { enabled: boolean; previews_enabled?: boolean };
 
 async function cfJson<T>(path: string, token: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${CLOUDFLARE_API}${path}`, {
@@ -39,6 +40,32 @@ async function ensureZeusDatabase(accountId: string, token: string, name: string
     if (!database) throw new Error("ساخت دیتابیس D1 ناموفق بود؛ دسترسی D1 Edit را بررسی کنید.");
     return database;
   }
+}
+
+async function ensureWorkersSubdomain(accountId: string, token: string): Promise<string> {
+  try {
+    const existing = await cfJson<WorkerSubdomain>(`/accounts/${accountId}/workers/subdomain`, token);
+    if (existing.subdomain) return existing.subdomain;
+  } catch {
+    // If the account has no workers.dev subdomain yet, create one below.
+  }
+
+  const requestedSubdomain = `peperouny-${accountId.slice(0, 8).toLowerCase()}`;
+  const created = await cfJson<WorkerSubdomain>(`/accounts/${accountId}/workers/subdomain`, token, {
+    method: "PUT",
+    body: JSON.stringify({ subdomain: requestedSubdomain }),
+  });
+  if (!created.subdomain) throw new Error("ساخت زیردامنه workers.dev در حساب Cloudflare انجام نشد.");
+  return created.subdomain;
+}
+
+async function enableWorkerSubdomain(accountId: string, token: string, scriptName: string): Promise<void> {
+  const result = await cfJson<ScriptSubdomain>(
+    `/accounts/${accountId}/workers/scripts/${scriptName}/subdomain`,
+    token,
+    { method: "POST", body: JSON.stringify({ enabled: true }) },
+  );
+  if (!result.enabled) throw new Error("فعال‌سازی آدرس workers.dev برای Worker ناموفق بود.");
 }
 
 async function uploadZeusWorker(
@@ -104,16 +131,13 @@ export async function deployZeus(accountId: string, token: string): Promise<Zeus
   await uploadZeusWorker(accountId, token, scriptName, database.uuid, source);
   steps.push("Worker uploaded with DB binding");
 
-  let workerUrl: string | null = null;
-  try {
-    const subdomain = await cfJson<WorkerSubdomain>(
-      `/accounts/${accountId}/workers/subdomain`,
-      token,
-    );
-    if (subdomain.subdomain) workerUrl = `https://${scriptName}.${subdomain.subdomain}.workers.dev`;
-  } catch {
-    // The script can be deployed even if workers.dev is not enabled for the account.
-  }
+  const accountSubdomain = await ensureWorkersSubdomain(accountId, token);
+  steps.push("workers.dev account subdomain ready");
+
+  await enableWorkerSubdomain(accountId, token, scriptName);
+  steps.push("Worker workers.dev route enabled");
+
+  const workerUrl = `https://${scriptName}.${accountSubdomain}.workers.dev`;
 
   return {
     project: "zeus",
