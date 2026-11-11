@@ -4,6 +4,7 @@ import "./style.css";
 
 type Account = { id: string; name: string };
 type ConnectionState = { connected: boolean; accountId?: string | null; accounts?: Account[] };
+const CLOUDFLARE_TOKEN_URL = "https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=%5B%7B%22key%22%3A%22account_settings%22%2C%22type%22%3A%22read%22%7D%2C%7B%22key%22%3A%22d1%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22workers_scripts%22%2C%22type%22%3A%22edit%22%7D%5D&accountId=%2A&zoneId=all&name=Peperouny%20Deployer";
 const projects = [
   { id: "zeus", name: "ZEUS", detail: "Telegram panel deployment", target: "Adapter in progress" },
   { id: "nexus", name: "NEXUS", detail: "Cloudflare Worker core", target: "Adapter in progress" },
@@ -132,6 +133,7 @@ function App() {
         </select>
         <button className="secondary-button" type="button" onClick={disconnect}>Remove saved token</button>
       </> : <form onSubmit={connect}>
+        <a className="token-link" href={CLOUDFLARE_TOKEN_URL} target="_blank" rel="noreferrer">ساخت API Token با دسترسی‌های لازم در Cloudflare ↗</a>
         <label className="field-label" htmlFor="cf-token">Cloudflare API Token</label>
         <div className="token-row">
           <input id="cf-token" type="password" autoComplete="off" value={token} onChange={(event) => setToken(event.target.value)} placeholder="Paste token once" required />
