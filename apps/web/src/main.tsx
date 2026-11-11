@@ -1,86 +1,118 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./style.css";
 
 type Account = { id: string; name: string };
-
+type ConnectionState = { connected: boolean; accountId?: string | null; accounts?: Account[] };
 const projects = [
-  { id: "ZEUS", detail: "Telegram panel deployment", target: "Adapter planned" },
-  { id: "NEXUS", detail: "Cloudflare Worker core", target: "Adapter planned" },
-  { id: "NOVA PROXY", detail: "Worker · KV · D1", target: "Adapter planned" },
+  { id: "zeus", name: "ZEUS", detail: "Telegram panel deployment", target: "Adapter in progress" },
+  { id: "nexus", name: "NEXUS", detail: "Cloudflare Worker core", target: "Adapter in progress" },
+  { id: "nova", name: "NOVA PROXY", detail: "Worker · KV · D1", target: "Workers only" },
 ];
 
 function App() {
   const [token, setToken] = useState("");
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccount, setSelectedAccount] = useState("");
-  const [status, setStatus] = useState("");
-  const [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [busy, setBusy] = useState(true);
+  const [status, setStatus] = useState("");
+  const [selectedProject, setSelectedProject] = useState("zeus");
 
-  async function verifyToken(event: React.FormEvent<HTMLFormElement>) {
+  useEffect(() => {
+    fetch("/api/cloudflare/status")
+      .then(async (response) => {
+        if (!response.ok) throw new Error("status");
+        return response.json() as Promise<ConnectionState>;
+      })
+      .then((data) => {
+        setConnected(data.connected);
+        setAccounts(data.accounts ?? []);
+        setSelectedAccount(data.accountId ?? "");
+        if (data.connected) setStatus("اتصال Cloudflare ذخیره شده و آماده استفاده است.");
+      })
+      .catch(() => setStatus("وضعیت اتصال قابل دریافت نیست. سرور Deployer را بررسی کنید."))
+      .finally(() => setBusy(false));
+  }, []);
+
+  async function connect(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
     setStatus("");
-    setConnected(false);
-    setAccounts([]);
-    setSelectedAccount("");
     try {
-      const response = await fetch("/api/cloudflare/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const response = await fetch("/api/cloudflare/connect", {
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token }),
       });
-      const data = await response.json() as {
-        success: boolean; message?: string; accounts?: Account[];
-      };
+      const data = await response.json() as { success: boolean; message?: string; accounts?: Account[]; accountId?: string };
       if (!response.ok || !data.success) throw new Error(data.message || "اتصال برقرار نشد.");
       setAccounts(data.accounts ?? []);
+      setSelectedAccount(data.accountId ?? "");
       setConnected(true);
-      setStatus(data.accounts?.length ? "توکن معتبر است و حساب‌ها دریافت شدند." : "توکن معتبر است؛ حسابی برای این توکن پیدا نشد.");
       setToken("");
+      setStatus("توکن بررسی و به‌صورت رمزنگاری‌شده ذخیره شد.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "خطای ناشناخته در اتصال.");
-    } finally {
-      setBusy(false);
-    }
+      setStatus(error instanceof Error ? error.message : "اتصال انجام نشد.");
+    } finally { setBusy(false); }
+  }
+
+  async function chooseAccount(accountId: string) {
+    setSelectedAccount(accountId);
+    try {
+      const response = await fetch("/api/cloudflare/account", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountId }),
+      });
+      if (!response.ok) throw new Error("ذخیره حساب انجام نشد.");
+      setStatus("حساب انتخاب‌شده ذخیره شد و برای دفعات بعد باقی می‌ماند.");
+    } catch (error) { setStatus(error instanceof Error ? error.message : "خطا در ذخیره حساب."); }
+  }
+
+  async function disconnect() {
+    if (!window.confirm("توکن ذخیره‌شده از این سرور حذف شود؟")) return;
+    const response = await fetch("/api/cloudflare/connect", { method: "DELETE" });
+    if (response.ok) {
+      setConnected(false); setAccounts([]); setSelectedAccount(""); setStatus("توکن ذخیره‌شده حذف شد.");
+    } else setStatus("حذف توکن انجام نشد.");
   }
 
   return <main className="shell">
-    <header><div className="mark">P</div><strong>PEPEROUNY <span>DEPLOYER</span></strong><small><i /> SYSTEM ONLINE</small></header>
+    <header><div className="mark">P</div><strong>PEPEROUNY <span>DEPLOYER</span></strong><small><i /> DEPLOY CONTROL</small></header>
     <section className="hero">
-      <p className="eyebrow">CLOUDFLARE DEPLOYMENT CONTROL CENTER</p>
-      <h1>Deploy without<br /><span>the busywork.</span></h1>
-      <p className="intro">One control panel for deploying and managing your Cloudflare projects.</p>
+      <p className="eyebrow">YOUR CLOUDFLARE DEPLOYMENT CONTROL CENTER</p>
+      <h1>Pick a project.<br /><span>We deploy it.</span></h1>
+      <p className="intro">One Cloudflare connection. Choose a project and let Peperouny handle its deployment.</p>
     </section>
     <section className="panel connection">
-      <div className="panel-head"><div><p className="eyebrow">CLOUDFLARE ACCOUNT</p><h2>Connect your account</h2></div><small>{connected ? "CONNECTED" : "NOT CONNECTED"}</small></div>
-      <form onSubmit={verifyToken}>
-        <label className="field-label" htmlFor="cf-token">API Token</label>
-        <div className="token-row">
-          <input id="cf-token" type="password" autoComplete="off" value={token} onChange={(event) => setToken(event.target.value)} placeholder="Paste your Cloudflare API Token" required />
-          <button type="submit" disabled={busy || !token.trim()}>{busy ? "Checking..." : "Verify token"}</button>
-        </div>
-      </form>
-      <p className="hint">Token is sent to the backend for verification and is not saved by this dashboard. Use a token with permission to read account details.</p>
-      {status && <p className={connected ? "status success" : "status error"} role="status">{status}</p>}
-      {accounts.length > 0 && <div className="account-picker">
-        <label className="field-label" htmlFor="cf-account">Select account</label>
-        <select id="cf-account" value={selectedAccount} onChange={(event) => setSelectedAccount(event.target.value)}>
-          <option value="">Choose a Cloudflare account</option>
-          {accounts.map((account) => <option key={account.id} value={account.id}>{account.name} · {account.id}</option>)}
+      <div className="panel-head"><div><p className="eyebrow">CLOUDFLARE CREDENTIAL</p><h2>{connected ? "Cloudflare connected" : "Connect once"}</h2></div><small>{busy ? "CHECKING..." : connected ? "SAVED" : "NOT CONNECTED"}</small></div>
+      {connected ? <>
+        <p className="connected-copy">توکن شما روی سرور رمزنگاری‌شده ذخیره شده؛ برای Deployهای بعدی نیازی به واردکردن دوباره آن نیست.</p>
+        <label className="field-label" htmlFor="cf-account">Cloudflare account</label>
+        <select id="cf-account" value={selectedAccount} onChange={(event) => chooseAccount(event.target.value)}>
+          <option value="">Choose an account</option>
+          {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
         </select>
-        {selectedAccount && <p className="hint">Account selected. Deployment actions will be enabled in the next step.</p>}
-      </div>}
+        <button className="secondary-button" type="button" onClick={disconnect}>Remove saved token</button>
+      </> : <form onSubmit={connect}>
+        <label className="field-label" htmlFor="cf-token">Cloudflare API Token</label>
+        <div className="token-row">
+          <input id="cf-token" type="password" autoComplete="off" value={token} onChange={(event) => setToken(event.target.value)} placeholder="Paste token once" required />
+          <button type="submit" disabled={busy || !token.trim()}>{busy ? "Checking..." : "Connect Cloudflare"}</button>
+        </div>
+        <p className="hint">توکن فقط به API خود Deployer ارسال و رمزنگاری‌شده ذخیره می‌شود؛ در مرورگر یا GitHub نگهداری نمی‌شود.</p>
+      </form>}
+      {status && <p className="status" role="status">{status}</p>}
     </section>
     <section className="panel">
-      <div className="panel-head"><div><p className="eyebrow">YOUR WORKSPACE</p><h2>Project adapters</h2></div><small>03 PROJECTS</small></div>
-      {projects.map(project => <article className="project" key={project.id}>
-        <div className="project-mark">{project.id[0]}</div><div className="project-info"><b>{project.id}</b><p>{project.detail}</p></div><label>{project.target}</label>
-      </article>)}
-      <p className="note">Project-specific deployment adapters are the next implementation step.</p>
+      <div className="panel-head"><div><p className="eyebrow">DEPLOYMENT CATALOG</p><h2>Choose what to deploy</h2></div><small>03 PROJECTS</small></div>
+      <div className="project-grid">
+        {projects.map((project) => <button type="button" className={selectedProject === project.id ? "project-card selected" : "project-card"} key={project.id} onClick={() => setSelectedProject(project.id)}>
+          <span className="project-mark">{project.name[0]}</span><b>{project.name}</b><p>{project.detail}</p><small>{project.target}</small>
+        </button>)}
+      </div>
+      <p className="note">انتخاب پروژه آماده است؛ موتور Provision و Deploy اختصاصی هر پروژه هنوز پیاده‌سازی نشده و تا تکمیل آن عملیات Deploy فعال نمی‌شود.</p>
     </section>
-    <footer>PEPEROUNY DEPLOYER <span>·</span> EARLY DEVELOPMENT</footer>
+    <footer>PEPEROUNY DEPLOYER <span>·</span> SELF-HOSTED CONTROL PLANE</footer>
   </main>;
 }
 createRoot(document.getElementById("root")!).render(<React.StrictMode><App /></React.StrictMode>);
