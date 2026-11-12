@@ -1,3 +1,4 @@
+import { deployHelloWorld } from "./deploy/hello-world.js";
 import { deployZeus } from "./deploy/zeus.js";
 
 interface D1Database {
@@ -148,6 +149,18 @@ async function route(request: Request, env: Env): Promise<Response> {
   if (url.pathname === "/api/cloudflare/connect" && request.method === "DELETE") {
     await env.PEPEROUNY_DB.prepare("DELETE FROM credentials WHERE id = ?").bind("cloudflare").run();
     return json({ success: true });
+  }
+  if (url.pathname === "/api/deploy/hello-world" && request.method === "POST") {
+    try {
+      const saved = await readSaved(env);
+      if (!saved) return json({ success: false, message: "ابتدا Cloudflare را متصل کنید." }, 409);
+      if (!saved.accountId) return json({ success: false, message: "ابتدا یک حساب انتخاب کنید." }, 409);
+      const deployment = await deployHelloWorld(saved.accountId, saved.token);
+      return json({ success: true, deployment });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Hello World deployment failed.";
+      return json({ success: false, message }, 502);
+    }
   }
   if (url.pathname === "/api/deploy" && request.method === "POST") {
     try {
