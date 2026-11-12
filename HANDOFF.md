@@ -42,3 +42,22 @@ ZEUS initial adapter in apps/api/src/deploy/zeus.ts, pinned upstream Source.js c
 - Account-level create endpoint: `PUT /accounts/{account_id}/workers/subdomain`; script route endpoint: `POST /accounts/{account_id}/workers/scripts/{script_name}/subdomain`.
 - Both operations require Workers Scripts Write (provided by Workers Scripts Edit token scope).
 - Local typecheck/build and live Cloudflare validation are still required for this change.
+
+
+## 2026-11-12: Hello World-first deployment flow
+
+The initial user journey has been changed to a minimal, legitimate Cloudflare Worker deployment:
+- New `apps/api/src/deploy/hello-world.ts` deploys a static Hello World Worker named `peperouny-hello-world` using the saved Cloudflare API token.
+- It ensures the account workers.dev subdomain, uploads the Worker, enables its workers.dev route, retries the live endpoint check, and verifies the JSON response.
+- `apps/api/src/worker.ts` exposes `POST /api/deploy/hello-world`.
+- `apps/web/src/main.tsx` now presents Cloudflare connection and a single **Create Hello World Worker** button instead of advertising ZEUS/Nexus/Nova as available.
+- README documents the limited scope and warns that the control plane must remain private until administrator authentication is added.
+
+Commits:
+- `33d2cb7` add Hello World deployment adapter
+- `9570209` add API endpoint
+- `2b6979a` replace project catalog with Hello World-first UI
+- `9392cb9` retry live health verification
+- `13ad450` document the starter deployment
+
+No Cloudflare resources were deleted and no new Cloudflare deployment was run as part of these source changes. Typecheck/build have not yet been run against this new commit set. Before a public production release, add administrator authentication and protections to all credential/deployment endpoints.
