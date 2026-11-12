@@ -94,11 +94,25 @@ export async function deployHelloWorld(accountId: string, token: string): Promis
   steps.push("workers.dev route enabled");
 
   const workerUrl = `https://${scriptName}.${subdomain}.workers.dev`;
-  const healthResponse = await fetch(workerUrl, { signal: AbortSignal.timeout(20_000) });
-  if (!healthResponse.ok) throw new Error(`Worker deployed but health check returned HTTP ${healthResponse.status}.`);
-  const health = await healthResponse.text();
-  if (!health.includes("Hello, world!") || !health.includes('"status": "ok"')) {
-    throw new Error("Worker responded, but the Hello World health check did not match.");
+  let health = "";
+  let lastStatus = 0;
+  let verified = false;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    try {
+      const healthResponse = await fetch(workerUrl, { signal: AbortSignal.timeout(15_000) });
+      lastStatus = healthResponse.status;
+      health = await healthResponse.text();
+      if (healthResponse.ok && health.includes("Hello, world!") && health.includes('"status": "ok"')) {
+        verified = true;
+        break;
+      }
+    } catch {
+      // Workers.dev route propagation can take a short time after deployment.
+    }
+    await new Promise(resolve => setTimeout(resolve, 2_000));
+  }
+  if (!verified) {
+    throw new Error(`Worker upload completed, but live health verification failed (last HTTP status: ${lastStatus || "no response"}).`);
   }
   steps.push("Live Hello World response verified");
 
