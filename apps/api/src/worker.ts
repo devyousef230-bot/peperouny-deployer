@@ -82,14 +82,26 @@ async function route(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   if (url.pathname === "/health") return json({ status: "ok", service: "peperouny-deployer" });
   if (url.pathname === "/api/cloudflare/status" && request.method === "GET") {
+    let stage = "credential_read";
     try {
-      const saved = await readSaved(env);
-      if (!saved) return json({ connected: false });
+      const row = await env.PEPEROUNY_DB.prepare("SELECT value FROM credentials WHERE id = ?").bind("cloudflare").first<{ value: string }>();
+      if (!row) return json({ connected: false });
+      stage = "credential_decrypt";
+      const saved = await decrypt(env, row.value);
+      stage = "token_verify";
       const verify = await cf<{ status: string }>("/user/tokens/verify", saved.token);
-      if (verify.result.status !== "active") return json({ connected: false });
+      if (verify.result.status !== "active") {
+        return json({ connected: false, stage, tokenStatus: verify.result.status }, 401);
+      }
+      stage = "account_list";
       const list = await accounts(saved.token);
       return json({ connected: true, accountId: saved.accountId, accounts: list.result });
-    } catch { return json({ connected: false, message: "Saved credentials could not be verified." }, 503); }
+    } catch (error) {
+      const diagnostic = error instanceof CloudflareApiError
+        ? { upstreamStatus: error.upstreamStatus, cloudflareCodes: error.cloudflareErrors.map(item => item.code).filter((code): code is number => typeof code === "number") }
+        : { errorName: error instanceof Error ? error.name : "UnknownError" };
+      return json({ connected: false, stage, diagnostic }, 503);
+    }
   }
   if (url.pathname === "/api/cloudflare/connect" && request.method === "POST") {
     let stage = "request_parse";
