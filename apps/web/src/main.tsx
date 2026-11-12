@@ -4,12 +4,7 @@ import "./style.css";
 
 type Account = { id: string; name: string };
 type ConnectionState = { connected: boolean; accountId?: string | null; accounts?: Account[] };
-const CLOUDFLARE_TOKEN_URL = "https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=%5B%7B%22key%22%3A%22account_settings%22%2C%22type%22%3A%22read%22%7D%2C%7B%22key%22%3A%22d1%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22workers_scripts%22%2C%22type%22%3A%22edit%22%7D%5D&accountId=%2A&zoneId=all&name=Peperouny%20Deployer";
-const projects = [
-  { id: "zeus", name: "ZEUS", detail: "Telegram panel deployment", target: "Adapter in progress" },
-  { id: "nexus", name: "NEXUS", detail: "Cloudflare Worker core", target: "Adapter in progress" },
-  { id: "nova", name: "NOVA PROXY", detail: "Worker · KV · D1", target: "Workers only" },
-];
+const CLOUDFLARE_TOKEN_URL = "https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=%5B%7B%22key%22%3A%22workers_scripts%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22account_settings%22%2C%22type%22%3A%22read%22%7D%5D&accountId=%2A&name=Peperouny%20Hello%20World";
 
 function App() {
   const [token, setToken] = useState("");
@@ -17,24 +12,23 @@ function App() {
   const [selectedAccount, setSelectedAccount] = useState("");
   const [connected, setConnected] = useState(false);
   const [busy, setBusy] = useState(true);
-  const [status, setStatus] = useState("");
-  const [selectedProject, setSelectedProject] = useState("zeus");
   const [deployBusy, setDeployBusy] = useState(false);
+  const [status, setStatus] = useState("");
   const [deployOutput, setDeployOutput] = useState("");
 
   useEffect(() => {
     fetch("/api/cloudflare/status")
-      .then(async (response) => {
+      .then(async response => {
         if (!response.ok) throw new Error("status");
         return response.json() as Promise<ConnectionState>;
       })
-      .then((data) => {
+      .then(data => {
         setConnected(data.connected);
         setAccounts(data.accounts ?? []);
         setSelectedAccount(data.accountId ?? "");
-        if (data.connected) setStatus("اتصال Cloudflare ذخیره شده و آماده استفاده است.");
+        if (data.connected) setStatus("اتصال Cloudflare ذخیره شده و آماده است.");
       })
-      .catch(() => setStatus("وضعیت اتصال قابل دریافت نیست. سرور Deployer را بررسی کنید."))
+      .catch(() => setStatus("وضعیت اتصال قابل دریافت نیست. سرور را بررسی کنید."))
       .finally(() => setBusy(false));
   }, []);
 
@@ -44,10 +38,13 @@ function App() {
     setStatus("");
     try {
       const response = await fetch("/api/cloudflare/connect", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token }),
       });
-      const data = await response.json() as { success: boolean; message?: string; accounts?: Account[]; accountId?: string };
+      const data = await response.json() as {
+        success: boolean; message?: string; accounts?: Account[]; accountId?: string;
+      };
       if (!response.ok || !data.success) throw new Error(data.message || "اتصال برقرار نشد.");
       setAccounts(data.accounts ?? []);
       setSelectedAccount(data.accountId ?? "");
@@ -56,109 +53,116 @@ function App() {
       setStatus("توکن بررسی و به‌صورت رمزنگاری‌شده ذخیره شد.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "اتصال انجام نشد.");
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function chooseAccount(accountId: string) {
     setSelectedAccount(accountId);
     try {
       const response = await fetch("/api/cloudflare/account", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ accountId }),
       });
-      if (!response.ok) throw new Error("ذخیره حساب انجام نشد.");
-      setStatus("حساب انتخاب‌شده ذخیره شد و برای دفعات بعد باقی می‌ماند.");
-    } catch (error) { setStatus(error instanceof Error ? error.message : "خطا در ذخیره حساب."); }
+      const data = await response.json() as { success: boolean; message?: string };
+      if (!response.ok || !data.success) throw new Error(data.message || "ذخیره حساب انجام نشد.");
+      setStatus("حساب انتخاب‌شده ذخیره شد.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "خطا در ذخیره حساب.");
+    }
   }
 
-  async function deploySelected() {
+  async function createHelloWorld() {
     if (!connected || !selectedAccount) {
       setStatus("ابتدا Cloudflare را متصل و حساب را انتخاب کنید.");
       return;
     }
-    if (selectedProject !== "zeus") {
-      setStatus("Adapter این پروژه هنوز آماده نشده است.");
-      return;
-    }
-    if (!window.confirm("ZEUS روی حساب Cloudflare انتخاب‌شده Deploy شود؟")) return;
+    if (!window.confirm("یک Worker ساده با پاسخ Hello, world! در حساب انتخاب‌شده ساخته شود؟")) return;
     setDeployBusy(true);
     setDeployOutput("");
-    setStatus("در حال ساخت منابع و انتشار ZEUS...");
+    setStatus("در حال ساخت و انتشار Hello World Worker...");
     try {
-      const response = await fetch("/api/deploy", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: selectedProject }),
-      });
+      const response = await fetch("/api/deploy/hello-world", { method: "POST" });
       const data = await response.json() as {
         success: boolean; message?: string;
-        deployment?: { scriptName: string; databaseName: string; workerUrl: string | null; steps: string[] };
+        deployment?: { scriptName: string; workerUrl: string; steps: string[]; health: string };
       };
-      if (!response.ok || !data.success || !data.deployment) throw new Error(data.message || "Deploy ناموفق بود.");
+      if (!response.ok || !data.success || !data.deployment) {
+        throw new Error(data.message || "ساخت Worker ناموفق بود.");
+      }
       const result = data.deployment;
       setDeployOutput([
-        ...result.steps.map((step) => "✓ " + step),
+        ...result.steps.map(step => "✓ " + step),
         "Worker: " + result.scriptName,
-        "D1: " + result.databaseName,
-        result.workerUrl ? "URL: " + result.workerUrl : "workers.dev برای این حساب هنوز فعال نیست.",
-      ].join("\\n"));
-      setStatus("فرایند Deploy ZEUS با موفقیت به پایان رسید.");
+        "URL: " + result.workerUrl,
+        "",
+        "Live response:",
+        result.health,
+      ].join("\n"));
+      setStatus("Hello World Worker ساخته شد و پاسخ زنده آن بررسی شد.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "خطا در Deploy.");
-    } finally { setDeployBusy(false); }
+      setStatus(error instanceof Error ? error.message : "خطا در ساخت Worker.");
+    } finally {
+      setDeployBusy(false);
+    }
   }
 
   async function disconnect() {
     if (!window.confirm("توکن ذخیره‌شده از این سرور حذف شود؟")) return;
     const response = await fetch("/api/cloudflare/connect", { method: "DELETE" });
     if (response.ok) {
-      setConnected(false); setAccounts([]); setSelectedAccount(""); setStatus("توکن ذخیره‌شده حذف شد.");
-    } else setStatus("حذف توکن انجام نشد.");
+      setConnected(false);
+      setAccounts([]);
+      setSelectedAccount("");
+      setStatus("توکن ذخیره‌شده حذف شد.");
+    } else {
+      setStatus("حذف توکن انجام نشد.");
+    }
   }
 
   return <main className="shell">
-    <header><div className="mark">P</div><strong>PEPEROUNY <span>DEPLOYER</span></strong><small><i /> DEPLOY CONTROL</small></header>
+    <header><div className="mark">P</div><strong>PEPEROUNY <span>DEPLOYER</span></strong><small><i /> WORKER STARTER</small></header>
     <section className="hero">
-      <p className="eyebrow">YOUR CLOUDFLARE DEPLOYMENT CONTROL CENTER</p>
-      <h1>Pick a project.<br /><span>We deploy it.</span></h1>
-      <p className="intro">One Cloudflare connection. Choose a project and let Peperouny handle its deployment.</p>
+      <p className="eyebrow">YOUR CLOUDFLARE WORKER STARTER</p>
+      <h1>Start simple.<br /><span>Deploy one Worker.</span></h1>
+      <p className="intro">Connect Cloudflare once, then create a working Hello World Worker with one click.</p>
     </section>
     <section className="panel connection">
-      <div className="panel-head"><div><p className="eyebrow">CLOUDFLARE CREDENTIAL</p><h2>{connected ? "Cloudflare connected" : "Connect once"}</h2></div><small>{busy ? "CHECKING..." : connected ? "SAVED" : "NOT CONNECTED"}</small></div>
+      <div className="panel-head"><div><p className="eyebrow">CLOUDFLARE CREDENTIAL</p><h2>{connected ? "Cloudflare connected" : "Connect Cloudflare"}</h2></div><small>{busy ? "CHECKING..." : connected ? "SAVED" : "NOT CONNECTED"}</small></div>
       {connected ? <>
-        <p className="connected-copy">توکن شما روی سرور رمزنگاری‌شده ذخیره شده؛ برای Deployهای بعدی نیازی به واردکردن دوباره آن نیست.</p>
+        <p className="connected-copy">توکن روی سرور رمزنگاری‌شده ذخیره شده و برای اجرای بعدی لازم نیست دوباره وارد شود.</p>
         <label className="field-label" htmlFor="cf-account">Cloudflare account</label>
-        <select id="cf-account" value={selectedAccount} onChange={(event) => chooseAccount(event.target.value)}>
+        <select id="cf-account" value={selectedAccount} onChange={event => chooseAccount(event.target.value)}>
           <option value="">Choose an account</option>
-          {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+          {accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}
         </select>
         <button className="secondary-button" type="button" onClick={disconnect}>Remove saved token</button>
       </> : <form onSubmit={connect}>
         <a className="token-link" href={CLOUDFLARE_TOKEN_URL} target="_blank" rel="noreferrer">ساخت API Token با دسترسی‌های لازم در Cloudflare ↗</a>
         <label className="field-label" htmlFor="cf-token">Cloudflare API Token</label>
         <div className="token-row">
-          <input id="cf-token" type="password" autoComplete="off" value={token} onChange={(event) => setToken(event.target.value)} placeholder="Paste token once" required />
+          <input id="cf-token" type="password" autoComplete="off" value={token} onChange={event => setToken(event.target.value)} placeholder="Paste token once" required />
           <button type="submit" disabled={busy || !token.trim()}>{busy ? "Checking..." : "Connect Cloudflare"}</button>
         </div>
-        <p className="hint">توکن فقط به API خود Deployer ارسال و رمزنگاری‌شده ذخیره می‌شود؛ در مرورگر یا GitHub نگهداری نمی‌شود.</p>
+        <p className="hint">توکن فقط به API خود Deployer ارسال می‌شود و در GitHub قرار نمی‌گیرد.</p>
       </form>}
       {status && <p className="status" role="status">{status}</p>}
     </section>
     <section className="panel">
-      <div className="panel-head"><div><p className="eyebrow">DEPLOYMENT CATALOG</p><h2>Choose what to deploy</h2></div><small>03 PROJECTS</small></div>
-      <div className="project-grid">
-        {projects.map((project) => <button type="button" className={selectedProject === project.id ? "project-card selected" : "project-card"} key={project.id} onClick={() => setSelectedProject(project.id)}>
-          <span className="project-mark">{project.name[0]}</span><b>{project.name}</b><p>{project.detail}</p><small>{project.target}</small>
-        </button>)}
-      </div>
+      <div className="panel-head"><div><p className="eyebrow">FIRST DEPLOYMENT</p><h2>Hello World Worker</h2></div><small>ONE CLICK</small></div>
+      <p className="connected-copy">یک Cloudflare Worker ساده ساخته می‌شود که پاسخ JSON شامل پیام Hello, world! برمی‌گرداند. سپس Peperouny آدرس عمومی آن را باز می‌کند و پاسخ واقعی را تست می‌کند.</p>
       <div className="deploy-actions">
-        <button type="button" className="deploy-button" onClick={deploySelected} disabled={!connected || deployBusy || selectedProject !== "zeus"}>
-          {deployBusy ? "Deploying ZEUS..." : selectedProject === "zeus" ? "Deploy ZEUS" : "Adapter coming soon"}
+        <button type="button" className="deploy-button" onClick={createHelloWorld} disabled={!connected || !selectedAccount || deployBusy}>
+          {deployBusy ? "Creating Worker..." : "Create Hello World Worker"}
         </button>
       </div>
       {deployOutput && <pre className="deploy-output">{deployOutput}</pre>}
-      <p className="note">در این مرحله Adapter اولیه ZEUS فعال است. Nexus و Nova بعد از تکمیل Adapter مستقل خودشان فعال می‌شوند.</p>
+      <p className="note">این مرحله فقط یک Worker آزمایشی و بی‌خطر می‌سازد؛ پروژه‌های دیگر تا زمان بررسی مستقل فعال نمی‌شوند.</p>
     </section>
-    <footer>PEPEROUNY DEPLOYER <span>·</span> SELF-HOSTED CONTROL PLANE</footer>
+    <footer>PEPEROUNY DEPLOYER <span>·</span> CLOUDFLARE WORKER STARTER</footer>
   </main>;
 }
+
 createRoot(document.getElementById("root")!).render(<React.StrictMode><App /></React.StrictMode>);
