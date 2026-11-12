@@ -57,3 +57,19 @@ The token entered into Peperouny is used by the deployed Worker to manage the se
 This is an early single-operator MVP. The dashboard/API does not yet have user authentication. Do not expose it as a public multi-user service. Anyone who can access the dashboard could potentially trigger deployments using the saved Cloudflare credential. Add authentication and request protections before sharing the URL. Keep the D1 database and `PEPEROUNY_MASTER_KEY` persistent; losing the key makes the saved token unreadable.
 
 No real Cloudflare deployment or end-to-end test has been performed by this repository change. Verify in a test account before using production resources.
+
+
+## First deployment: Hello World Worker
+
+The first supported deployment is intentionally a minimal Cloudflare Worker. After connecting a Cloudflare API Token with **Workers Scripts: Edit** permission and selecting an account, click **Create Hello World Worker**.
+
+Peperouny then:
+1. Verifies the saved API token.
+2. Ensures the account has a `workers.dev` subdomain.
+3. Uploads the `peperouny-hello-world` Worker.
+4. Enables its `workers.dev` route.
+5. Retries a live HTTP health check and confirms the JSON response contains `Hello, world!`.
+
+This is a starter deployment only. It does not deploy ZEUS, Nexus, Nova Proxy, proxy functionality, or any third-party application.
+
+**Important for self-hosting:** keep the Peperouny control plane private until administrator authentication and request protections are configured. Never expose an unauthenticated deployment dashboard containing a saved Cloudflare token to the public internet. Do not commit API tokens, master keys, or real account credentials.
